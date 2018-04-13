@@ -118,7 +118,7 @@ def do_extract(args):
   FILENAMES = sorted(glob.glob(args.images))
   nimages = len(FILENAMES)
   if nimages == 0:
-    print("Did not find any images in '{}'.format(args.images)")
+    print("Did not find any images in '{}".format(args.images))
     return 
   if args.verbose:
     print("Processing {} images".format(nimages))
