@@ -6,10 +6,45 @@
 
     Reference:
     [R. Sun, C.H. Lampert, "KS(conf) A Light-Weight Test if a ConvNet 
-    Operates Outside of Its Specifications", arXiv 2018]
+    Operates Outside of Its Specifications", arXiv:1804.04171 [stat.ML]]
 
-    Example use: 
+    Example uses: 
+    ******************************************************************
+    Check false positives by testing 'test' vs. 'val' with defaults
+    alpha (0.01) and batchsize (1000)
 
+    > python runtests.py --val ../conf/ResNet50-val-max.npy \
+                         --test ../conf/ResNet50-test-max.npy
+
+    output:
+    #ratio alpha batchsz  KSconf  mean   logmean    z      logz   s.mean  s.logm    s.z   s.logz
+     1.00 0.01000    1000 0.0090 0.0114 0.0083 0.0123 0.0101 0.0109 0.0042 0.0107 0.0094
+
+    ******************************************************************
+    Check detection rate on 'blue+whale' class with alpha=0.01 and batchsize=100. 
+    Set the random seed to 0, do only 100 repeats, print the results without header line.
+
+    > python runtests.py --val ../conf/ResNet50-val-max.npy \
+                         --test ../conf/ResNet50-blue+whale-max.npy \
+                         --alpha 0.01 --batchsize 100 --seed 0 \
+                         --repeats 100 --noheader
+
+    output:
+     1.00  0.010   100    1.0000 0.0100 0.0000 0.0100 0.0000 0.0100 0.0000 0.0100 0.0000
+
+    ******************************************************************
+    Check detection rate when mixing 25% 'seal' with 75% 'ILSVRC test' 
+    for VGG19 network confidence scores and filtering results for a 
+    windowsize of 10. Use short argument names.
+
+    > python runtests.py -V ../conf/VGG19-val-max.npy \
+                         -T ../conf/VGG19-seal-max.npy \
+                         -X ../conf/VGG19-test-max.npy \
+                         -r 0.25 -w 10 
+
+    output:
+    #ratio  alpha batchsz KSconf  mean   logmean    z      logz   s.mean  s.logm    s.z   s.logz F-susp. F-extr.
+     0.25   0.010    1000 0.6247 0.0000   0.0000  0.0000  0.0000  0.7308  0.0000   0.7128 0.6591 0.7070  0.9821
 '''
 
 from __future__ import print_function
@@ -19,198 +54,15 @@ import argparse
 import numpy as np
 import sys
 
-
-def extreme_examples(self, batch, windowsize=100):
-  if windowsize >= len(batch):
-    return np.ones_like(batch, dtype=bool)
-  
-  batch_sort = np.sort(batch)
-  thresh = batch_sort[windowsize] # (k+1)th lowest value
-  batch_candidates = (batch<thresh) # bottom k elements
-  return Y_candidates
-
-  
-class KSconf:
-  """Naive implementation of KS(conf). More efficient ways would be possible."""
-  def __init__(self, val):
-    m = len(val)
-    self.values = np.sort( np.append( np.insert(val, 0, 0.), 1.)  )
-    self.uniform = np.linspace(0, 1, m+2, endpoint=True)
-    self.cdf = lambda batch: np.interp(batch, xp=self.values, fp=self.uniform)
-    self.invcdf = lambda batch: np.interp(batch, xp=self.uniform, fp=self.values)
-    import KStab
-    self.KStab = KStab.KStab
-
-  def flatten_cdf(self, Y):
-    return self.cdf(Y)    # turn x~P into x~U([0,1])
-
-  def flat_test(self, batch, alpha=0.01):
-    batch = self.flatten_cdf(batch) # try to make ~U([0,1])
-    batch = np.sort(batch)
-    
-    n = len(batch)
-    uniform = np.linspace(0,1,n+1,endpoint=True)
-    left_diff = np.abs(batch - uniform[:-1])    # |F(y_k)-k/N|
-    right_diff = np.abs(uniform[1:] - batch)    # |k+1/N-F(y_k+1)|
-    KS_stat = np.max([left_diff, right_diff]) # = max(max(D+,D-))
-    
-    try:
-      thresh = self.KStab[n,alpha]  # check if we have tabulated value
-    except KeyError:
-      c=np.sqrt(-0.5*np.log(alpha/2.))  # otherwise use closed-form
-      thresh = c/np.sqrt(n)
-    
-    return KS_stat>thresh # return test result: True/False
-
-  def repeated_test(self, test_data, extra_data, ratio=1., batchsize=100, windowsize=0, alpha=0.01, nrepeats=10, do_thresholded=True):
-    n_test = np.int(np.ceil(ratio*batchsize)) # can be 0, no problem
-    n_extra = batchsize-n_test                # can be 0, no problem
-    
-    RES = []
-    for i in range(nrepeats):
-      batch_test = np.random.choice(test_data,[n_test], replace=False) # it's the user's job to make sure there's enough test samples
-      
-      try:
-        batch_extra = np.random.choice(extra_data,[n_extra], replace=False) # works if nZ<=len(Z)
-      except ValueError: 
-        # our not very elegant way of coping if there are not enough samples in extra_data
-        batch_extra1 = np.repeat(Z, nZ//len(Z))
-        batch_extra2 = np.random.choice(Z,[nZ-len(batch_extra1)], replace=False)
-        batch_extra = np.concatenate([batch_extra1,batch_extra2])
-        perturb_inplace(batch_extra) # prevent duplicates
-      
-      batch = np.concatenate((batch_test, label_extra))
-
-      res = self.flat_test(batch, alpha=alpha)
-      RES.append(res)
-
-      if windowsize>0: # apply filtering
-        suspicious_examples = self.suspicious_examples(batch, windowsize)
-        
-        label_test = np.zeros_like(batch_test)
-        label_extra = np.ones_like(label_extra)
-        labels = np.concatenate((label_extra, label_extra))
-        if suspicious_examples.any():
-          accS = labels[suspicious_examples].mean()
-        else:
-          accS = np.nan
-        extreme_examples = self.extreme_examples(batch, windowsize)
-        if extreme_examples.any():
-          accX = labels[extreme_examples].mean()
-        else:
-          accX = np.nan
-        ACC.append([accS,accX])
-
-    return RES,ACC,THR
-
-  def suspicious_examples(self, batch, windowsize=100, do_plot=False, eps=1e-6):
-    # identify overpopulated bin
-    m = len(batch)
-    if windowsize >= m:
-      return np.ones_like(batch, dtype=bool)
-    
-    batch = self.flatten_cdf(batch)   # should be uniform distribution now
-    
-    # TODO: find more elegant way of doing this...
-    nbins = m//windowsize
-    bins = np.linspace(0, 1, nbins, endpoint=False)
-    batch_hist = np.histogram(batch, bins )[0]
-    batch_bins = np.digitize(batch, bins)-1 # put samples into bins
-    batch_maxbin = np.argmax(batch_hist)  # most populated bin
-    batch_candidates = (batch_bins == batch_maxbin)
-    return batch_candidates
-  
-    
-class Meantests:
-  def __init__(self, val):
-    self.valmean = np.mean(val) # for mean tests
-    self.valstd = np.std(val)
-    self.vallogmean = np.mean(np.log(val)) # for log-mean tests
-    self.vallogstd = np.std(np.log(val))
-  
-  def adjust_thresholds(self, alpha, batchsize, nrepeats=1000):
-    nrepeats = max( nrepeats, np.int(np.ceil(2./alpha)) )
-    from scipy.stats import norm
-
-    self.thr_Z = norm.ppf(alpha, loc=self.valmean, scale=self.valstd/np.sqrt(batchsize)), self.valmean, np.inf # no upper, only lower bound
-    self.thr_logZ = norm.ppf(alpha, loc=self.vallogmean, scale=self.vallogstd/np.sqrt(batchsize)), self.vallogmean, np.inf # no upper, only lower bound
-    self.thr_Z2 = norm.ppf(0.5*alpha, loc=self.valmean, scale=self.valstd/np.sqrt(batchsize)), self.valmean, norm.ppf(1.-0.5*alpha, loc=self.valmean, scale=self.valstd/np.sqrt(batchsize))
-    self.thr_logZ2 = norm.ppf(0.5*alpha, loc=self.vallogmean, scale=self.vallogstd/np.sqrt(batchsize)), self.vallogmean, norm.ppf(1.-0.5*alpha, loc=self.vallogmean, scale=self.vallogstd/np.sqrt(batchsize))
-    
-    mean_stat,logmean_stat = [],[]
-    OT_stat = [] 
-    for i in range(nrepeats):
-      batch = np.random.random([batchsize])  # random uniform 
-      batch = np.sort(batch)
-      
-      n = len(batch)
-      uniform = np.linspace(0,1,n+1,endpoint=True)
-      left_diff = np.abs(batch - uniform[:-1])
-      right_diff = np.abs(uniform[1:] - batch)
-      
-      self.cdf = lambda batch: np.interp(batch, xp=self.values, fp=self.uniform)
-      self.invcdf = lambda batch: np.interp(batch, xp=self.uniform, fp=self.values)
-    
-      OT_stat.append( 0.5*np.abs(left_diff-right_diff).mean() )   # = EMD
-      
-      batch = self.invcdf(batch)                 # uniform -> P
-      mean_stat.append( np.mean(batch) )
-      logmean_stat.append( np.mean(np.log(batch) ) )
-    
-    mean_stat = np.sort(mean_stat)
-    logmean_stat = np.sort(logmean_stat)
-    
-    OT_stat  = np.sort(OT_stat)
-
-    index = np.int(np.floor(alpha*nrepeats)) # number of permitted outliers
-    assert index >= 2
-    
-    self.thr_mean = mean_stat[index], np.mean(mean_stat), np.inf
-    self.thr_mean2 = mean_stat[(index-1)//2], np.mean(mean_stat), mean_stat[-index//2]
-    self.thr_logmean = logmean_stat[index], np.mean(logmean_stat), np.inf
-    self.thr_logmean2 = logmean_stat[(index-1)//2], np.mean(logmean_stat), mean_stat[-index//2]
-    self.thr_OT = OT_stat[(index-1)//2], np.mean(OT_stat), OT_stat[-index//2]
-  def threshold_tests(self, batch):
-    # original test without flattening
-    
-    #max_stat = np.max(batch)
-    #min_stat = np.min(batch)
-    mean_stat = np.mean(batch)
-    logmean_stat = np.mean(np.log(batch))
-    #prod_stat = np.exp(np.mean(np.log(batch)))
-    
-    batch = self.flatten_cdf(batch) # try to make ~U([0,1])
-    batch = np.sort(batch)
-    
-    n = len(batch)
-    uniform = np.linspace(0,1,n+1,endpoint=True)
-    left_diff = np.abs(batch - uniform[:-1])
-    right_diff = np.abs(uniform[1:] - batch)
-      
-    #KS_stat = np.max([left_diff, right_diff])
-    #V_stat = left_diff.max()+right_diff.max()
-    OT_stat = np.abs(batch-0.5*(uniform[1:]+uniform[:-1])).mean()  # approx. L1 between CDFs
-
-    #print("Z:",mean_stat,self.thr_Z)
-    #print("logZ:",logmean_stat,self.thr_logZ,self.thr_logZ2)
-    return mean_stat<self.thr_mean[0], \
-           logmean_stat<self.thr_logmean[0], \
-           mean_stat<self.thr_Z[0], \
-           logmean_stat<self.thr_logZ[0], \
-           np.logical_or(mean_stat<self.thr_mean2[0], mean_stat>self.thr_mean2[2]), \
-           np.logical_or(logmean_stat<self.thr_logmean2[0], logmean_stat>self.thr_logmean2[2]), \
-           np.logical_or(mean_stat<self.thr_Z2[0], mean_stat>self.thr_Z2[2]), \
-           np.logical_or(logmean_stat<self.thr_logZ2[0], logmean_stat>self.thr_logZ2[2]), \
-           np.logical_or(OT_stat<self.thr_OT[0], OT_stat>self.thr_OT[2]) 
-        
-  
-
+from KSconf import KSconf
+from meantests import Meantests
+from utils import perturb_inplace
   
 def main():
   parser = argparse.ArgumentParser(description='KS(conf) and other tests for distribution change.')
-  parser.add_argument('--val', '-V', type=str, default=None, required=True, help='Text file containing within-specs confidence scores')
-  parser.add_argument('--test', '-T', type=str, default='test', help='Text file containing confidence scores to be tested')
-  parser.add_argument('--extra', '-X', type=str, default='test', help='Text file containing additional confidence scores')
+  parser.add_argument('--val', '-V', type=str, default=None, required=True, help='NPY file containing within-specs confidence scores')
+  parser.add_argument('--test', '-T', type=str, default=None, required=True, help='NPY file containing confidence scores to be tested')
+  parser.add_argument('--extra', '-X', type=str, default=None, help='NPY file containing additional confidence scores')
 
   parser.add_argument('--batchsize', '-b', type=int, default=1000, help='Size of test batch, default: 1000')
 
@@ -222,94 +74,97 @@ def main():
   parser.add_argument('--seed', '-s', type=int, default=None, help='Random seed (default: none)')
 
   parser.add_argument('--eps', type=float, default=1e-6, help='Amount of noise to use for making scores unique, (default: 1e-6)')
-  parser.add_argument('--verbose', '-v', type=bool, default=False, help='Print status/debug messages, default: off')
+  parser.add_argument('--verbose', '-v', action='store_true', help='Print status/debug messages, default: off')
+  parser.add_argument('--noheader', action='store_false', dest='header', help='Do not print header explaining result columns, default: off')
   
   args = parser.parse_args()
   do_tests(args)
 
-def perturb_inplace(data, eps):
-  """Perturb data to make values unique. 
-  We avoid leaving the [0,1] interval by perturbing very small values
-  only to the positive and very large values only to the negative.
-  """
-  tiny_noise = np.random.uniform(0.1,0.9,len(val))
-  close_to_zero_set = (data < eps)
-  close_to_one_set = (data > 1.-eps)
-  center_set = np.logical_not(close_to_zero_set+close_to_one_set)
-  data[close_to_zero_set] += eps*tiny_noise[close_to_zero_set]
-  data[close_to_one_set] -= eps*tiny_noise[close_to_one_set]
-  data[center_set] += eps*(tiny_noise[center_set]-.5)
-  return data
-  
 def do_tests(args):
   if args.seed is not None:
     np.random.seed(args.seed)
   
   assert(0 <= args.ratio <= 1)
   
-  val_data = np.loadtxt(args.val)
-  perturb_inplace(val_data)
-  KS = KSconf(val_data)
-  MT = Meantests(val_data)
+  val_data = np.load(args.val)
+  test_data = np.load(args.test)
+  n_test = len(test_data)
   
-  test_data = np.loadtxt(args.test)
-  perturb_inplace(test_data)
-  
-  if args.ration == 1:
+  if args.ratio == 1:
     extra_data = None
   else:
     if not args.extra:
       print("ratio<1 needs 'extra' data")
       raise SystemExit
     
-    extra_data = np.loadtxt(args.extra)
-    perturb_inplace(extra_data)
+    extra_data = np.load(args.extra)
     
-    if args.ratio>0.:  # true mixture of test and extra
-      ntest = len(test_extra)
-      if len(test_extra) == ntest:
+    if args.ratio>0.:  # mixed batches of test and extra data?
+      n_extra = len(extra_data)
+      if n_extra == n_test: # TODO: add proper flag instead of this heuristic
         # specific for test and extra both generated from same images.
         # use different halfs (by indices) to make sure the same 
         # images don't end up in both sets
-        idx = np.random.permutation(ntest)
+        idx = np.random.permutation(n_extra)
         test_data = test_data[idx[::2]]
         extra_data = extra_data[idx[1::2]]    # disjoint subsets
   
-  alpha = args.alpha
-  batchsize = args.batchsize
-  ratio = args.ratio
-
   if args.verbose:
-    print("Batchsize effect for ratio {}, alpha {}, batchsize {}".format(self.ratio, self.alpha, self.batchsize))
-
-  if args.alpha >= 0.0001:
-    do_thresholded = True # too slow to determine thresholds otherwise
-  else:
-    do_thresholded = False
-
-  if do_thresholded:
-    MT.adjust_thresholds(alpha, batchsize)
+    if args.extra:
+      print("#Testing '{}' vs '{}' and '{}'".format(args.val,args.test,args.extra))
+    else:
+      print("#Testing '{}' vs '{}'".format(args.val,args.test))
   
-  RES,ACC,THR = KS.repeated_test(test_data, other_data, 
-                                 alpha=args.alpha, ratio=args.ratio, 
-                                 batchsize=args.batchsize, 
-                                 windowsize=args.windowsize, 
-                                 nrepeats=args.repeats, 
-                                 do_thresholded=do_thresholded)
+  
+  # perform KS-based tests and potentially filtering
+  
+  KS = KSconf(val_data, eps=args.eps)
+  
+  res_KSconf,ACC = KS.repeated_test(test_data, extra_data, 
+                             alpha=args.alpha, 
+                             ratio=args.ratio, 
+                             batchsize=args.batchsize, 
+                             nrepeats=args.repeats,
+                             windowsize=args.windowsize)
+  rate_KSconf = res_KSconf.mean(axis=0)
+  
+  # perform mean-based tests
+  
+  MT = Meantests(val_data, eps=args.eps)
+  MT.adjust_thresholds(val_data, args.alpha, args.batchsize)
+  res_meantests = MT.repeated_test(test_data, extra_data, 
+                                   alpha=args.alpha, 
+                                   ratio=args.ratio, 
+                                   batchsize=args.batchsize, 
+                                   nrepeats=args.repeats,
+                                   windowsize=args.windowsize)
+  rate_meantests = res_meantests.mean(axis=0)
+  
+  # print results
+  
+  if args.header:
+    header_string = "#ratio\talpha\tbatchsz\tKSconf"
+  output_string = "{:5.2f}\t{:7.5f}\t{:7d}".format(args.ratio, args.alpha, args.batchsize)
+  output_string += "\t{:6.4f}".format(rate_KSconf) # KS(conf)
 
-  RES,ACC,THR = np.asarray(RES),np.asarray(ACC),np.asarray(THR)
-  if args.windowsize>0 and RES.any():
-    accS,accX = ACC[RES].mean(axis=0)
-  else:
-    accS,accX = ratio, ratio
-  
-  thr = np.mean(THR,axis=0)
-  
-  if args.latex:
-    format_string = "{:5.2f}\t& {:7.5f}\t& {:7d}\t& {:7.4f}\t& {:7.4f}\t& {:7.4f}" + "\t& {:7.4f}"*len(thr) + "   \\\\" 
-  else:
-    format_string = "{:5.2f}\t{:7.5f}\t{:7d}\t{:7.4f}\t{:6.4f}\t{:6.4f}" + "\t{:6.4f}"*len(thr) 
-  print(format_string.format(ratio, alpha, batchsize, np.mean(RES), accS, accX, *thr)) # np.sum(RES), len(RES)
+  if args.header:
+    header_string += "\tmean\tlogmean\tz\tlogz\ts.mean\ts.logm\ts.z\ts.logz"
+  output_string += ("\t{:6.4f}"*len(rate_meantests)).format(*rate_meantests) # mean-based tests
+
+  if args.windowsize>0:
+    if res_KSconf.any():
+      acc_suspicious,acc_extreme = ACC[res_KSconf].mean(axis=0)
+    else:
+      acc_suspicious,acc_extreme = args.ratio, args.ratio # without any positive tests, return result of random guessing
+
+    if args.header:
+      header_string += "\tF-susp.\tF-extr."
+    output_string += "\t{:6.4f}\t{:6.4f}".format(acc_suspicious,acc_extreme)
+
+  if args.header:
+    print(header_string)
+  print(output_string)
+
 
 if __name__ == "__main__":
   main()

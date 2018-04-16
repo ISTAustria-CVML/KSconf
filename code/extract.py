@@ -8,7 +8,7 @@
 
     Reference:
     [R. Sun, C.H. Lampert, "KS(conf) A Light-Weight Test if a ConvNet 
-    Operates Outside of Its Specifications", arXiv 2018]
+    Operates Outside of Its Specifications", arXiv:1804.04171 [stat.ML]]
 
     Example use: 
     
