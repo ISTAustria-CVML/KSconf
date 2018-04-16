@@ -115,6 +115,9 @@ def apply_geometry(img, geometry):
 
 
 def do_extract(args):
+  if args.seed is not None:
+    np.random.seed(args.seed)
+
   FILENAMES = sorted(glob.glob(args.images))
   nimages = len(FILENAMES)
   if nimages == 0:
