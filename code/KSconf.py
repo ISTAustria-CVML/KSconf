@@ -63,7 +63,7 @@ class KSconf:
         labels = np.zeros_like(batch_test)
         if n_extra > 0:
           label_extra = np.ones_like(batch_extra)
-          labels = np.concatenate((label_test, label_extra))
+          labels = np.concatenate((labels, label_extra))
         assert( suspicious_examples.any() )
         acc_suspicious = labels[suspicious_examples].mean()
         
