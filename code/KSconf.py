@@ -40,8 +40,8 @@ class KSconf:
     return KS_stat>thresh # return test result: True/False
 
   def repeated_test(self, test_data, extra_data, ratio, batchsize, alpha, nrepeats, windowsize=0):
-    n_test = np.int(np.ceil(ratio*batchsize)) # can be 0, no problem
-    n_extra = batchsize-n_test                # can be 0, no problem
+    n_extra = np.int(np.floor(ratio*batchsize)) # can be 0, no problem
+    n_test = batchsize-n_extra                 # can be 0, no problem
     
     RES = [] # result of out-of-specs tests
     ACC = [] # result of filtering by density or score  (only for positive tests)
@@ -60,9 +60,10 @@ class KSconf:
       if windowsize>0: # apply filtering
         suspicious_examples = self.filter_suspicious_examples(batch, windowsize)
         
-        label_test = np.zeros_like(batch_test)
-        label_extra = np.ones_like(batch_extra)
-        labels = np.concatenate((label_test, label_extra))
+        labels = np.zeros_like(batch_test)
+        if n_extra > 0:
+          label_extra = np.ones_like(batch_extra)
+          labels = np.concatenate((label_test, label_extra))
         assert( suspicious_examples.any() )
         acc_suspicious = labels[suspicious_examples].mean()
         

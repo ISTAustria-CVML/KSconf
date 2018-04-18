@@ -60,8 +60,8 @@ class Meantests:
            )
   
   def repeated_test(self, test_data, extra_data, ratio, batchsize, alpha, nrepeats, windowsize=0):
-    n_test = np.int(np.ceil(ratio*batchsize)) # can be 0, no problem
-    n_extra = batchsize-n_test                # can be 0, no problem
+    n_extra = np.int(np.floor(ratio*batchsize)) # can be 0, no problem
+    n_test = batchsize-n_extra                # can be 0, no problem
     
     RES = [] # result of out-of-specs tests
     ACC = [] # result of filtering by density or score  (only for positive tests)

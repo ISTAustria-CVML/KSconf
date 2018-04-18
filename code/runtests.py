@@ -66,7 +66,7 @@ def main():
 
   parser.add_argument('--batchsize', '-b', type=int, default=1000, help='Size of test batch, default: 1000')
 
-  parser.add_argument('--ratio', '-r', type=float, default=1.0, help='Ratio for mixing "test" and "extra" data, default: 1.')
+  parser.add_argument('--ratio', '-r', type=float, default=0.0, help='Ratio for mixing "extra" and "test" data, default: 0.')
   parser.add_argument('--alpha', '-a', type=float, default=0.01, help='Target false positive rate, default: 0.01')
   parser.add_argument('--repeats', '-N', type=int, default=10000, help='Number of time to repeat each test, default: 10000')
 
@@ -90,11 +90,11 @@ def do_tests(args):
   test_data = np.load(args.test)
   n_test = len(test_data)
   
-  if args.ratio == 1:
+  if args.ratio == 0:
     extra_data = None
   else:
     if not args.extra:
-      print("ratio<1 needs 'extra' data")
+      print("ratio>0 needs 'extra' data")
       raise SystemExit
     
     extra_data = np.load(args.extra)
