@@ -24,6 +24,4 @@ Each file contains the confidence scores for the following 78 synthetic manipula
 * **bgr**: Swapped color channels, RGB<->BGR
 
 ## Reference:
-[R. Sun, C.H. Lampert, "KS(conf) A Light-Weight Test if a ConvNet Operates Outside of Its Specifications", arXiv:1804.04171 [stat.ML]]
-
-
+[* R. Sun, C.H. Lampert, "KS(conf) A Light-Weight Test if a ConvNet Operates Outside of Its Specifications", arXiv:1804.04171 [stat.ML]](https://arxiv.org/abs/1804.04171)
