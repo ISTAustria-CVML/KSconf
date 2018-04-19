@@ -60,8 +60,8 @@ from utils import perturb_inplace
   
 def main():
   parser = argparse.ArgumentParser(description='KS(conf) and other tests for distribution change.')
-  parser.add_argument('--val', '-V', type=str, default=None, required=True, help='NPY file containing within-specs confidence scores')
-  parser.add_argument('--test', '-T', type=str, default=None, required=True, help='NPY file containing confidence scores to be tested')
+  parser.add_argument('--val', '-V', type=str, required=True, help='NPY file containing within-specs confidence scores')
+  parser.add_argument('--test', '-T', type=str, required=True, help='NPY file containing confidence scores to be tested')
   parser.add_argument('--extra', '-X', type=str, default=None, help='NPY file containing additional confidence scores')
 
   parser.add_argument('--batchsize', '-b', type=int, default=1000, help='Size of test batch, default: 1000')
