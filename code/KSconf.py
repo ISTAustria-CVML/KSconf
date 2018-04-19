@@ -60,9 +60,9 @@ class KSconf:
       if windowsize>0: # apply filtering
         suspicious_examples = self.filter_suspicious_examples(batch, windowsize)
         
-        labels = np.zeros_like(batch_test)
+        labels = np.ones_like(batch_test)
         if n_extra > 0:
-          label_extra = np.ones_like(batch_extra)
+          label_extra = np.zeros_like(batch_extra)
           labels = np.concatenate((labels, label_extra))
         assert( suspicious_examples.any() )
         acc_suspicious = labels[suspicious_examples].mean()
