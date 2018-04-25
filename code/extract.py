@@ -138,7 +138,7 @@ def do_extract(args):
     bs = 250
   elif args.model == 'VGG19':
     model = nets.VGG19(inputs)
-    bs = 250
+    bs = 200
   elif args.model == 'MobileNet25':
     model = nets.MobileNet25(inputs)
     bs = 2500
